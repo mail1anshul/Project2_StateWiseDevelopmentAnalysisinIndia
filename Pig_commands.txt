@@ -1,0 +1,87 @@
+=======================================================
+Copy dataset from local file system to HDFS using flume:
+=======================================================
+
+flume-ng agent -n DataAgent -c conf -f /home/acadgild/Desktop/Projects/Project2/filecopy.conf
+
+hadoop fs -cat /flume_import
+
+======================================================================
+Find out the districts who achieved 100 percent objective in BPL cards:
+======================================================================
+
+register '/home/acadgild/Desktop/data/pig/session5_assignment2/piggybank.jar'
+
+DEFINE XPath org.apache.pig.piggybank.evaluation.xml.XPath();
+
+StateWiseAnalysis = load '/home/acadgild/Desktop/Projects/Project2/StatewiseDistrictwisePhysicalProgress.xml' using org.apache.pig.piggybank.storage.XMLLoader('row') as (data:chararray);
+
+dump StateWiseAnalysis;
+
+Data1 = FOREACH StateWiseAnalysis GENERATE XPath(data, 'row/State_Name') AS statename, XPath(data, 'row/District_Name') AS disname,XPath(data, 'row/Project_Objectives_IHHL_BPL') AS BPL,XPath(data, 'row/Project_Objectives_IHHL_TOTAL') AS total;
+
+dump Data1;
+
+Result = FILTER Data1 BY BPL == total;
+
+dump Result;
+
+STORE Result INTO '/home/acadgild/ResultBPL' USING PigStorage(','); 
+
+hadoop fs -put /home/acadgild/ResultBPL /user/acadgild/hadoop/
+
+hadoop fs -ls /user/acadgild/hadoop/ResultBPL
+
+hadoop fs -cat /user/acadgild/hadoop/ResultBPL/part-m-00000
+
+mysql -u root
+
+create database BPL_Data;
+
+use BPL_Data;
+
+create table BPLTargetAchieved (State varchar(20), district varchar(50), BPL int, total int);
+
+show tables;
+
+sqoop export --connect jdbc:mysql://localhost/BPL_Data --username 'root' -P --table BPLTargetAchieved --export-dir '/user/acadgild/hadoop/ResultBPL/part-m-00000' --input-fields-terminated-by ',' -m 1 
+
+select * from BPLTargetAchieved;
+
+=========================================================================================
+Write a Pig UDF to filter the districts which have reached 80% of objectives of BPL cards:
+=========================================================================================
+
+register '/home/acadgild/Desktop/data/pig/session5_assignment2/piggybank.jar'
+
+DEFINE XPath org.apache.pig.piggybank.evaluation.xml.XPath();
+
+register '/home/acadgild/workspace/BPLdataAnalysis.jar'
+
+StateWiseAnalysis = load '/home/acadgild/Desktop/Projects/Project2/StatewiseDistrictwisePhysicalProgress.xml' using org.apache.pig.piggybank.storage.XMLLoader('row') as (data:chararray);
+
+Data1 = FOREACH StateWiseAnalysis GENERATE XPath(data, 'row/State_Name') AS statename, XPath(data, 'row/District_Name') AS disname,XPath(data, 'row/Project_Objectives_IHHL_BPL') AS BPL,XPath(data, 'row/Project_Objectives_IHHL_TOTAL') AS total;
+
+BPLdata = FILTER Data1 BY BPLdataAnalysis(BPL,total); 
+
+dump BPLdata;
+
+STORE BPLdata INTO '/home/acadgild/BPLdataRes' USING PigStorage(',');
+
+hadoop fs -put /home/acadgild/BPLdataRes /user/acadgild/hadoop/
+
+hadoop fs -ls /user/acadgild/hadoop/BPLdataRes
+
+hadoop fs -cat /user/acadgild/hadoop/BPLdataRes/part-m-00000
+
+mysql -u root
+
+use BPL_Data;
+
+create table BPL80perAchieved (State varchar(20), district varchar(50), BPL int, total int);
+
+show tables;
+
+sqoop export --connect jdbc:mysql://localhost/BPL_Data --username 'root' -P --table BPL80perAchieved --export-dir '/user/acadgild/hadoop/BPLdataRes/part-m-00000' --input-fields-terminated-by ',' -m 1 
+
+select * from BPLTargetAchieved;
